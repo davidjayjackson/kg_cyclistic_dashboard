@@ -1,0 +1,173 @@
+---
+title: "Cyclistic Bike Share"
+format: pdf
+editor: visual
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(lubridate)
+library(janitor)
+library(scales)
+library(leaflet)
+```
+
+## Kaggle Source: 
+
+```{r}
+#| echo: false
+rm(list = ls())
+# Get a list of all files in the data directory
+files <- list.files("data", full.names = TRUE)
+
+# Read and combine all files into a single dataframe
+bike_data <- files %>%
+  map_dfr(read_csv) %>%
+  filter(!is.na(start_station_name)) %>% select(-ride_id,-start_station_id,-end_station_id)
+
+```
+
+
+## Data Wrangling
+
+```{r}
+#| echo: false
+bike_data <- bike_data %>%
+  mutate(date = as.Date(started_at),
+         day_of_week = wday(date, label = TRUE),
+         month = month(date, label = TRUE),
+         hour = hour(started_at))
+
+# Calculate trip duration by subtracting started_at from ended_at
+bike_data <- bike_data %>%
+  mutate(trip_duration = as.numeric(ended_at - started_at, units = "mins"))  %>%
+  mutate(trip_duration = round(trip_duration)) %>% filter(trip_duration >1)
+```
+
+## Export clean data
+
+```{r}
+# write_csv(bike_data,file="bike_data.csv")
+
+```
+
+
+```{r}
+#| echo: false
+bike_data$rideable_type <- as.factor(bike_data$rideable_type)
+bike_data$member_casual <- as.factor(bike_data$member_casual)
+```
+```{r}
+bike_data %>% select(rideable_type,member_casual,day_of_week,month) %>% summary()
+```
+
+## A histogram of trip durations
+
+```{r}
+bike_data %>%
+  ggplot(aes(x = log10(trip_duration))) +
+  geom_histogram() +
+  labs(title = "Histogram of Trip Durations",
+       x = "Trip Duration (mins)",
+       y = "Count")
+```
+
+## A bar chart of customer types
+
+```{r}
+bike_data %>%
+  ggplot(aes(x = member_casual, fill = member_casual)) +
+  geom_bar() +
+  labs(title = "Bar Chart of Customer Types",
+       x = "Customer Type",
+       y = "Count")
+```
+##  A line chart of bike usage by month
+
+```{r}
+bike_data %>%
+  group_by(month) %>%
+  summarise(count = n()) %>%
+  ggplot(aes(x = month, y = count, fill = month)) +
+  geom_col() +
+  labs(title = "Column Chart of Bike Usage by Month",
+       x = NULL,
+       y = "Count") +
+  theme(axis.text.x = element_blank())
+```
+## A boxplot of trip durations by customer type
+
+```{r}
+bike_data %>%
+  ggplot(aes(x = member_casual, y = trip_duration, fill = member_casual)) +
+  geom_boxplot() +
+  labs(title = "Boxplot of Trip Durations by Customer Type",
+       x = "Customer Type",
+       y = "Trip Duration (mins)")
+```
+
+## A scatter plot of start and end locations
+
+```{r}
+bike_data %>% filter(month =="Jul") %>%
+  ggplot(aes(x = start_lng, y = start_lat, color = member_casual)) +
+  geom_point(alpha = 0.1) +
+  geom_point(aes(x = end_lng, y = end_lat), alpha = 0.1) +
+  labs(title = "Scatter Plot of Start and End Locations",
+       x = "Longitude",
+       y = "Latitude")
+```
+
+## A pie chart of customer types
+
+```{r}
+bike_data %>%
+  count(member_casual) %>%
+  ggplot(aes(x = "", y = n, fill = member_casual)) +
+  geom_col(width = 1) +
+  coord_polar(theta = "y") +
+  labs(title = "Pie Chart of Customer Types",
+       x = NULL,
+       y = NULL)
+```
+
+## A pie chart by Bike types
+
+```{r}
+bike_data %>%
+  count(rideable_type) %>%
+  ggplot(aes(x = "", y = n, fill = rideable_type)) +
+  geom_col(width = 1) +
+  coord_polar(theta = "y") +
+  labs(title = "Pie Chart of Bike Types",
+       x = NULL,
+       y = NULL)
+```
+
+## A density plot of trip durations by customer type
+
+```{r}
+bike_data %>%
+  ggplot(aes(x = log10(trip_duration), fill = member_casual)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Density Plot of Trip Durations by Customer Type",
+       x = "Trip Duration (mins)log10",
+       y = "Density")
+
+```
+## A facet plot of bike usage by hour and day of week
+
+```{r}
+bike_data %>%
+  count(hour, day_of_week) %>%
+  ggplot(aes(x = hour, y = n)) +
+  geom_area() +
+  facet_wrap(~day_of_week) +
+  labs(title = "Facet Plot of Bike Usage by Hour and Day of Week",
+       x = "Hour",
+       y = "Count")
+```
+
+## Map of the number of rides for July
+
+
