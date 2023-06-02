@@ -1,6 +1,6 @@
 ---
 title: "Cyclistic Bike Share"
-format: pdf
+format: html
 editor: visual
 ---
 
@@ -17,7 +17,7 @@ library(RSQLite)
 
 ```{r}
 rm(list =  ls())
-db <- dbConnect(SQLite(), dbname="../DATA/kaggle.sqlite3")
+db <- dbConnect(SQLite(), dbname="../DATA/cyclistic.sqlite3")
 bike_data <- dbGetQuery(db,"SELECT * FROM cyclistic_clean;")
 
 ```
@@ -31,7 +31,6 @@ bike_data$member_casual <- as.factor(bike_data$member_casual)
 bike_data$day_of_week <- as.factor(bike_data$day_of_week)
 bike_data$month <- as.factor(bike_data$month)
 bike_data$hour <- as.factor(bike_data$hour)
-summary(bike_data)
 ```
 
 ```{r}
@@ -63,10 +62,9 @@ bike_data %>%
 ## A line chart of bike usage by month
 
 ```{r}
-bike_data %>%
-  group_by(month) %>%
-  summarise(count = n()) %>%
-  ggplot(aes(x = month, y = count, fill = month)) +
+month_data <- dbGetQuery(db,"SELECT * FROM ride_months;")
+ month_data %>%
+  ggplot(aes(x = reorder(month,ride_count), y = ride_count, fill = month)) +
   geom_col() +
   labs(title = "Column Chart of Bike Usage by Month",
        x = NULL,
@@ -88,13 +86,20 @@ bike_data %>%
 ## A scatter plot of start and end locations
 
 ```{r}
-bike_data %>% filter(month =="Jul") %>%
-  ggplot(aes(x = start_lng, y = start_lat, color = member_casual)) +
+july_rides <- dbGetQuery(db,"SELECT * FROM july_rides;")
+```
+
+
+```{r}
+
+july_rides %>% 
+  ggplot(aes(x = longitude, y = latitude, color = member_casual)) +
   geom_point(alpha = 0.1) +
-  geom_point(aes(x = end_lng, y = end_lat), alpha = 0.1) +
-  labs(title = "Scatter Plot of Start and End Locations",
+  # geom_point(aes(x = end_lng, y = end_lat), alpha = 0.1) +
+  labs(title = "Scatter Plot of Start Locations",
        x = "Longitude",
-       y = "Latitude")
+       y = "Latitude") + theme_classic() +
+   theme(panel.grid = element_line(color = "black", linewidth = 0.5))
 ```
 
 ## A pie chart of customer types
@@ -138,14 +143,58 @@ bike_data %>%
 ## A facet plot of bike usage by hour and day of week
 
 ```{r}
-bike_data %>%
-  count(hour, day_of_week) %>%
-  ggplot(aes(x = hour, y = n)) +
-  geom_area() +
-  facet_wrap(~day_of_week) +
-  labs(title = "Facet Plot of Bike Usage by Hour and Day of Week",
+bike_data %>% group_by(hour, day_of_week)%>%
+  summarize(count = n()) %>%
+  ggplot() +
+  geom_area(aes(x = hour, y = count, group = day_of_week, fill = day_of_week)) +
+  labs(title = "Plot of Bike Usage by Hour and Day of Week",
        x = "Hour",
        y = "Count")
 ```
 
 ## Map of the number of rides for July
+
+```{r}
+# Load the ggmap package
+# library(ggmap)
+# 
+# # Get the map of Chicago from Google Maps
+# chicago_map <- get_map(location = "chicago il", zoom = 11)
+# 
+# # Plot the map with your data
+# ggmap(chicago_map) +
+#   geom_point(data = july_rides, aes(x = start_lng, y = start_lat, color = member_casual), alpha = 0.1) +
+#   labs(title = "Scatter Plot of Start Locations",
+#        x = "Longitude",
+#        y = "Latitude")
+```
+```{r}
+july_rides_stations <- dbGetQuery(db,"SELECT * FROM july_rides_stations;")
+```
+```{r}
+# Load the maps package
+library(maps)
+
+
+# Plot the map of Chicago
+ggplot() +
+  geom_polygon(data = map_data("state", region = "illinois"), 
+               aes(x = long, y = lat, group = group), fill = "grey", color = "white") +
+  coord_map(xlim = c(-87.9, -87.5), ylim = c(41.6, 42)) +
+  geom_point(data = july_rides_stations, aes(x = longitude, y = , color = member_casual), alpha = 0.1) +
+  labs(title = "Scatter Plot of Start Locations",
+       x = "Longitude",
+       y = "Latitude")
+
+
+```
+```{r}
+leaflet(july_rides_stations) %>%
+  addTiles() %>% # Add default OpenStreetMap map tiles
+  setView(lng = -87.7, lat = 41.8, zoom = 8) %>% # Set a center point and zoom level
+  addCircleMarkers(lng = ~longitude, lat = ~latitude,
+                   popup = ~paste0("Station: ", start_station_name, "<br>",
+                                   "Ride count: ", ride_count),
+                   label = ~start_station_name)
+```
+
